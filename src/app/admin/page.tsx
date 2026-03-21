@@ -6001,9 +6001,9 @@ const VideoSourceScriptLab = () => {
     enabled: true,
     history: [],
   });
-  const [testHook, setTestHook] = useState<'search' | 'detail' | 'resolvePlayUrl'>('search');
+  const [testHook, setTestHook] = useState<'getSources' | 'search' | 'recommend' | 'detail' | 'resolvePlayUrl'>('getSources');
   const [testPayload, setTestPayload] = useState(
-    JSON.stringify({ keyword: '凡人修仙传', page: 1 }, null, 2)
+    JSON.stringify({}, null, 2)
   );
   const [testOutput, setTestOutput] = useState('');
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -6302,13 +6302,18 @@ const VideoSourceScriptLab = () => {
 
   useEffect(() => {
     setTestPayload(
-      testHook === 'search'
-        ? JSON.stringify({ keyword: '凡人修仙传', page: 1 }, null, 2)
+      testHook === 'getSources'
+        ? JSON.stringify({}, null, 2)
+        : testHook === 'search'
+        ? JSON.stringify({ keyword: '凡人修仙传', page: 1, sourceId: 'main' }, null, 2)
+        : testHook === 'recommend'
+        ? JSON.stringify({ page: 1 }, null, 2)
         : testHook === 'detail'
-          ? JSON.stringify({ id: 'demo-id' }, null, 2)
+          ? JSON.stringify({ id: 'demo-id', sourceId: 'main' }, null, 2)
           : JSON.stringify(
               {
-                sourceId: 'demo-id',
+                sourceId: 'main',
+                lineId: 'default',
                 playUrl: 'https://example.com/video.m3u8',
                 episodeIndex: 0,
               },
@@ -6488,14 +6493,19 @@ const VideoSourceScriptLab = () => {
                 </label>
                 <select
                   value={testHook}
-                  onChange={(e) => setTestHook(e.target.value as 'search' | 'detail' | 'resolvePlayUrl')}
+                  onChange={(e) => setTestHook(e.target.value as 'getSources' | 'search' | 'recommend' | 'detail' | 'resolvePlayUrl')}
                   className='px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
                 >
+                  <option value='getSources'>getSources</option>
                   <option value='search'>search</option>
+                  <option value='recommend'>recommend</option>
                   <option value='detail'>detail</option>
                   <option value='resolvePlayUrl'>resolvePlayUrl</option>
                 </select>
               </div>
+              <p className='text-xs text-gray-500 dark:text-gray-400'>
+                现在脚本可以自己管理多个源和线路，测试入参可传 `sourceId`、`lineId`。
+              </p>
               <textarea
                 value={testPayload}
                 onChange={(e) => setTestPayload(e.target.value)}

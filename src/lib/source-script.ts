@@ -55,9 +55,17 @@ const DEFAULT_SCRIPT_TEMPLATE = `return {
     author: 'admin'
   },
 
-  async search(ctx, { keyword, page }) {
-    ctx.log.info('search', keyword, page);
+  async getSources(ctx) {
+    return [
+      { id: 'main', name: '主站' },
+      { id: 'backup', name: '备用站' }
+    ];
+  },
+
+  async search(ctx, { keyword, page, sourceId }) {
+    ctx.log.info('search', keyword, page, sourceId);
     return {
+      sourceId,
       list: [],
       page,
       pageCount: 1,
@@ -65,21 +73,40 @@ const DEFAULT_SCRIPT_TEMPLATE = `return {
     };
   },
 
-  async detail(ctx, { id }) {
-    ctx.log.info('detail', id);
+  async recommend(ctx, { page }) {
+    ctx.log.info('recommend', page);
+    return {
+      list: [],
+      page: page || 1,
+      pageCount: 1,
+      total: 0
+    };
+  },
+
+  async detail(ctx, { id, sourceId }) {
+    ctx.log.info('detail', id, sourceId);
     return {
       id,
+      sourceId,
       title: '',
       poster: '',
       year: '',
       desc: '',
-      episodes: [],
-      episodes_titles: []
+      playbacks: [
+        {
+          sourceId: sourceId || 'main',
+          sourceName: '主站',
+          lineId: 'default',
+          lineName: '默认线路',
+          episodes: [],
+          episodes_titles: []
+        }
+      ]
     };
   },
 
-  async resolvePlayUrl(ctx, { playUrl, sourceId, episodeIndex }) {
-    ctx.log.info('resolvePlayUrl', sourceId, episodeIndex, playUrl);
+  async resolvePlayUrl(ctx, { playUrl, sourceId, lineId, episodeIndex }) {
+    ctx.log.info('resolvePlayUrl', sourceId, lineId, episodeIndex, playUrl);
     return {
       url: playUrl,
       type: 'auto',
@@ -550,7 +577,7 @@ export async function restoreSourceScriptHistory(id: string, version: string) {
 
 export async function testSourceScript(input: {
   code: string;
-  hook: 'search' | 'detail' | 'resolvePlayUrl';
+  hook: 'getSources' | 'search' | 'recommend' | 'detail' | 'resolvePlayUrl';
   payload: Record<string, any>;
   name?: string;
   key?: string;
