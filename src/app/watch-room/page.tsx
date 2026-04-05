@@ -8,11 +8,40 @@ import { useEffect,useState } from 'react';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
 import PageLayout from '@/components/PageLayout';
+import Toast, { ToastProps } from '@/components/Toast';
 import { useWatchRoomContext } from '@/components/WatchRoomProvider';
 
 import type { Room, RoomType } from '@/types/watch-room';
 
 type TabType = 'create' | 'join' | 'list';
+
+function getScreenShareHostSupportError() {
+  if (typeof window === 'undefined') return null;
+
+  if (!window.isSecureContext) {
+    return '当前环境不是安全上下文（HTTPS/localhost），不支持屏幕共享';
+  }
+
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    return '当前浏览器不支持屏幕共享';
+  }
+
+  if (typeof window.RTCPeerConnection === 'undefined') {
+    return '当前浏览器不支持实时屏幕传输';
+  }
+
+  return null;
+}
+
+function getScreenShareViewerSupportError() {
+  if (typeof window === 'undefined') return null;
+
+  if (typeof window.RTCPeerConnection === 'undefined') {
+    return '当前浏览器不支持实时屏幕传输';
+  }
+
+  return null;
+}
 
 export default function WatchRoomPage() {
   const router = useRouter();
@@ -48,6 +77,16 @@ export default function WatchRoomPage() {
   const [loading, setLoading] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [joinLoading, setJoinLoading] = useState(false);
+  const [toast, setToast] = useState<ToastProps | null>(null);
+
+  const showToast = (message: string, type: ToastProps['type'] = 'info') => {
+    setToast({
+      message,
+      type,
+      duration: 3000,
+      onClose: () => setToast(null),
+    });
+  };
 
   // 加载房间列表
   const loadRooms = async (showLoading = false) => {
@@ -82,8 +121,16 @@ export default function WatchRoomPage() {
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createForm.roomName.trim()) {
-      alert('请输入房间名称');
+      showToast('请输入房间名称', 'error');
       return;
+    }
+
+    if (createForm.roomType === 'screen') {
+      const supportError = getScreenShareHostSupportError();
+      if (supportError) {
+        showToast(`当前设备无法创建屏幕共享房间：${supportError}`, 'error');
+        return;
+      }
     }
 
     setCreateLoading(true);
@@ -106,7 +153,7 @@ export default function WatchRoomPage() {
         roomType: 'sync',
       });
     } catch (error: any) {
-      alert(error.message || '创建房间失败');
+      showToast(error.message || '创建房间失败', 'error');
     } finally {
       setCreateLoading(false);
     }
@@ -117,8 +164,17 @@ export default function WatchRoomPage() {
     e.preventDefault();
     const targetRoomId = roomId || joinForm.roomId.trim().toUpperCase();
     if (!targetRoomId) {
-      alert('请输入房间ID');
+      showToast('请输入房间ID', 'error');
       return;
+    }
+
+    const targetRoom = rooms.find((room) => room.id === targetRoomId);
+    if (targetRoom?.roomType === 'screen') {
+      const supportError = getScreenShareViewerSupportError();
+      if (supportError) {
+        showToast(`当前设备无法加入屏幕共享房间：${supportError}`, 'error');
+        return;
+      }
     }
 
     setJoinLoading(true);
@@ -138,7 +194,7 @@ export default function WatchRoomPage() {
       // 注意：加入房间后，isOwner 状态会在 useWatchRoom 中更新
       // 跳转逻辑会在 useEffect 中处理
     } catch (error: any) {
-      alert(error.message || '加入房间失败');
+      showToast(error.message || '加入房间失败', 'error');
     } finally {
       setJoinLoading(false);
     }
@@ -219,6 +275,14 @@ export default function WatchRoomPage() {
 
   // 从房间列表加入房间
   const handleJoinFromList = (room: Room) => {
+    if (room.roomType === 'screen') {
+      const supportError = getScreenShareViewerSupportError();
+      if (supportError) {
+        showToast(`当前设备无法加入屏幕共享房间：${supportError}`, 'error');
+        return;
+      }
+    }
+
     setJoinForm({
       roomId: room.id,
       password: '',
@@ -810,6 +874,7 @@ export default function WatchRoomPage() {
           )}
         </div>
       </div>
+      {toast && <Toast {...toast} />}
     </PageLayout>
   );
 }

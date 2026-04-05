@@ -3,17 +3,47 @@
 import { Monitor, MonitorPlay, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
+import Toast, { ToastProps } from '@/components/Toast';
 import { useWatchRoomContext } from '@/components/WatchRoomProvider';
 import { useScreenShare } from '@/hooks/useScreenShare';
 
 const NEW_TAB_KEY_PREFIX = 'watch_room_screen_home_opened_';
 
+function getScreenShareHostSupportError() {
+  if (typeof window === 'undefined') return null;
+
+  if (!window.isSecureContext) {
+    return '当前环境不是安全上下文（HTTPS/localhost），不支持屏幕共享';
+  }
+
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    return '当前浏览器不支持屏幕共享';
+  }
+
+  if (typeof window.RTCPeerConnection === 'undefined') {
+    return '当前浏览器不支持实时屏幕传输';
+  }
+
+  return null;
+}
+
+function getScreenShareViewerSupportError() {
+  if (typeof window === 'undefined') return null;
+
+  if (typeof window.RTCPeerConnection === 'undefined') {
+    return '当前浏览器不支持实时屏幕传输';
+  }
+
+  return null;
+}
+
 export default function WatchRoomScreenPage() {
   const router = useRouter();
   const watchRoom = useWatchRoomContext();
   const { currentRoom, members, leaveRoom } = watchRoom;
+  const [toast, setToast] = useState<ToastProps | null>(null);
   const {
     currentRoom: screenRoom,
     isOwner,
@@ -26,6 +56,15 @@ export default function WatchRoomScreenPage() {
     stopSharing,
   } = useScreenShare();
 
+  const showToast = (message: string, type: ToastProps['type'] = 'info') => {
+    setToast({
+      message,
+      type,
+      duration: 3000,
+      onClose: () => setToast(null),
+    });
+  };
+
   useEffect(() => {
     if (!currentRoom) {
       router.replace('/watch-room');
@@ -36,6 +75,19 @@ export default function WatchRoomScreenPage() {
       router.replace('/watch-room');
     }
   }, [currentRoom, router]);
+
+  useEffect(() => {
+    if (!screenRoom || screenRoom.roomType !== 'screen') return;
+
+    const supportError = isOwner
+      ? getScreenShareHostSupportError()
+      : getScreenShareViewerSupportError();
+    if (supportError) {
+      showToast(`当前设备无法使用屏幕共享房间：${supportError}`, 'error');
+      leaveRoom();
+      router.replace('/watch-room');
+    }
+  }, [isOwner, leaveRoom, router, screenRoom?.id, screenRoom?.roomType]);
 
   useEffect(() => {
     if (!screenRoom || !isOwner) return;
@@ -196,6 +248,7 @@ export default function WatchRoomScreenPage() {
           </div>
         </div>
       </div>
+      {toast && <Toast {...toast} />}
     </div>
   );
 }
