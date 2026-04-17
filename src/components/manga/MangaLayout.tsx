@@ -32,7 +32,7 @@ function getMeta(pathname: string, searchParams: ReturnType<typeof useSearchPara
     return {
       title: searchParams.get('title') || '漫画详情',
       subtitle: searchParams.get('sourceName') || '漫画详情',
-      backHref: '/manga',
+      backHref: searchParams.get('returnTo') || '/manga',
     };
   }
   if (pathname === '/manga/read') {
@@ -41,10 +41,11 @@ function getMeta(pathname: string, searchParams: ReturnType<typeof useSearchPara
     const title = searchParams.get('title') || '漫画阅读';
     const cover = searchParams.get('cover') || '';
     const sourceName = searchParams.get('sourceName') || sourceId;
+    const returnTo = searchParams.get('returnTo') || '/manga';
     return {
       title,
       subtitle: searchParams.get('chapterName') || '章节',
-      backHref: `/manga/detail?mangaId=${encodeURIComponent(mangaId)}&sourceId=${encodeURIComponent(sourceId)}&title=${encodeURIComponent(title)}&cover=${encodeURIComponent(cover)}&sourceName=${encodeURIComponent(sourceName)}`,
+      backHref: `/manga/detail?mangaId=${encodeURIComponent(mangaId)}&sourceId=${encodeURIComponent(sourceId)}&title=${encodeURIComponent(title)}&cover=${encodeURIComponent(cover)}&sourceName=${encodeURIComponent(sourceName)}&returnTo=${encodeURIComponent(returnTo)}`,
     };
   }
   return { title: '漫画展馆', subtitle: '搜索漫画并加入书架' };
@@ -63,7 +64,7 @@ export default function MangaLayout({ children }: MangaLayoutProps) {
     <div className='min-h-screen bg-gray-50 text-gray-900 dark:bg-black dark:text-gray-100'>
       <header className='fixed inset-x-0 top-0 z-[999] border-b border-gray-200/70 bg-white/85 backdrop-blur-xl shadow-sm dark:border-gray-800/80 dark:bg-gray-950/85'>
         <div className='mx-auto flex h-14 max-w-7xl items-center gap-3 px-3 sm:h-16 sm:px-6'>
-          <div className='flex min-w-0 items-center gap-2'>
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
             {meta.backHref ? (
               <Link
                 href={meta.backHref}
@@ -115,7 +116,7 @@ export default function MangaLayout({ children }: MangaLayoutProps) {
             })}
           </nav>
 
-          <div className={`${isReadingPage ? 'flex' : 'hidden md:flex'} items-center gap-2`}>
+          <div className={`${isReadingPage ? 'ml-auto flex shrink-0' : 'ml-auto hidden md:flex'} items-center gap-2`}>
             {isReadingPage ? (
               <>
                 <button

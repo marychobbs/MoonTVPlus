@@ -1,9 +1,9 @@
 'use client';
 
+import { ArrowDownWideNarrow, ArrowUpWideNarrow } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownWideNarrow, ArrowUpWideNarrow } from 'lucide-react';
 
 import { getAllMangaReadRecords, saveMangaReadRecord } from '@/lib/db.client';
 import type { MangaChapter, MangaDetail, MangaReadRecord } from '@/lib/manga.types';
@@ -78,6 +78,7 @@ export default function MangaReadPage() {
   const cover = searchParams.get('cover') || '';
   const sourceName = searchParams.get('sourceName') || sourceId;
   const chapterName = searchParams.get('chapterName') || '章节';
+  const returnTo = searchParams.get('returnTo') || '/manga';
 
   const [pages, setPages] = useState<string[]>([]);
   const [activePage, setActivePage] = useState(0);
@@ -752,7 +753,7 @@ export default function MangaReadPage() {
                   return (
                     <Link
                       key={chapter.id}
-                      href={`/manga/read?mangaId=${mangaId}&sourceId=${sourceId}&chapterId=${chapter.id}&title=${encodeURIComponent(title)}&cover=${encodeURIComponent(cover)}&sourceName=${encodeURIComponent(sourceName)}&chapterName=${encodeURIComponent(chapter.name)}`}
+                      href={`/manga/read?mangaId=${mangaId}&sourceId=${sourceId}&chapterId=${chapter.id}&title=${encodeURIComponent(title)}&cover=${encodeURIComponent(cover)}&sourceName=${encodeURIComponent(sourceName)}&chapterName=${encodeURIComponent(chapter.name)}&returnTo=${encodeURIComponent(returnTo)}`}
                       className={`group relative block rounded-2xl px-4 py-3 text-sm transition ${
                         active
                           ? 'bg-sky-600 text-white'
@@ -790,7 +791,7 @@ export default function MangaReadPage() {
               <div className='mt-6 flex flex-col gap-3'>
                 {nextChapter ? (
                   <Link
-                    href={`/manga/read?mangaId=${mangaId}&sourceId=${sourceId}&chapterId=${nextChapter.id}&title=${encodeURIComponent(title)}&cover=${encodeURIComponent(cover)}&sourceName=${encodeURIComponent(sourceName)}&chapterName=${encodeURIComponent(nextChapter.name)}`}
+                    href={`/manga/read?mangaId=${mangaId}&sourceId=${sourceId}&chapterId=${nextChapter.id}&title=${encodeURIComponent(title)}&cover=${encodeURIComponent(cover)}&sourceName=${encodeURIComponent(sourceName)}&chapterName=${encodeURIComponent(nextChapter.name)}&returnTo=${encodeURIComponent(returnTo)}`}
                     className='rounded-2xl bg-sky-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-sky-700'
                   >
                     下一话：{nextChapter.name}
@@ -894,7 +895,7 @@ export default function MangaReadPage() {
       </div>
 
       <Link
-        href={`/manga/detail?mangaId=${mangaId}&sourceId=${sourceId}&title=${encodeURIComponent(title)}&cover=${encodeURIComponent(cover)}&sourceName=${encodeURIComponent(sourceName)}`}
+        href={`/manga/detail?mangaId=${mangaId}&sourceId=${sourceId}&title=${encodeURIComponent(title)}&cover=${encodeURIComponent(cover)}&sourceName=${encodeURIComponent(sourceName)}&returnTo=${encodeURIComponent(returnTo)}`}
         className='sr-only'
       >
         返回详情

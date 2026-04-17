@@ -71,6 +71,7 @@ export default function MangaDetailPage() {
   const searchParams = useSearchParams();
   const mangaId = searchParams.get('mangaId') || '';
   const sourceId = searchParams.get('sourceId') || '';
+  const returnTo = searchParams.get('returnTo') || '/manga';
   const [detail, setDetail] = useState<MangaDetail | null>(null);
   const [history, setHistory] = useState<Record<string, MangaReadRecord>>({});
   const [shelf, setShelf] = useState<Record<string, MangaShelfItem>>({});
@@ -140,7 +141,7 @@ export default function MangaDetailPage() {
   };
 
   const chapterHref = (chapter: MangaChapter) =>
-    `/manga/read?mangaId=${mangaId}&sourceId=${sourceId}&chapterId=${chapter.id}&title=${encodeURIComponent(detail?.title || '')}&cover=${encodeURIComponent(detail?.cover || '')}&sourceName=${encodeURIComponent(detail?.sourceName || '')}&chapterName=${encodeURIComponent(chapter.name)}`;
+    `/manga/read?mangaId=${mangaId}&sourceId=${sourceId}&chapterId=${chapter.id}&title=${encodeURIComponent(detail?.title || '')}&cover=${encodeURIComponent(detail?.cover || '')}&sourceName=${encodeURIComponent(detail?.sourceName || '')}&chapterName=${encodeURIComponent(chapter.name)}&returnTo=${encodeURIComponent(returnTo)}`;
 
   if (!detail) return <MangaDetailSkeleton />;
 
@@ -175,7 +176,7 @@ export default function MangaDetailPage() {
             )}
             {currentRecord && (
               <Link
-                href={`/manga/read?mangaId=${mangaId}&sourceId=${sourceId}&chapterId=${currentRecord.chapterId}&title=${encodeURIComponent(detail.title)}&cover=${encodeURIComponent(detail.cover)}&sourceName=${encodeURIComponent(detail.sourceName)}&chapterName=${encodeURIComponent(currentRecord.chapterName)}`}
+                href={`/manga/read?mangaId=${mangaId}&sourceId=${sourceId}&chapterId=${currentRecord.chapterId}&title=${encodeURIComponent(detail.title)}&cover=${encodeURIComponent(detail.cover)}&sourceName=${encodeURIComponent(detail.sourceName)}&chapterName=${encodeURIComponent(currentRecord.chapterName)}&returnTo=${encodeURIComponent(returnTo)}`}
                 className='rounded-2xl border border-sky-300 px-5 py-3 text-sm font-medium text-sky-700 transition hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950/30'
               >
                 <Clock3 className='mr-2 inline h-4 w-4' />继续阅读 第 {currentRecord.pageIndex + 1}/{currentRecord.pageCount} 页

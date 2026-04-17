@@ -1,12 +1,15 @@
 'use client';
 
 import { Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { deleteMangaShelf, getAllMangaShelf, saveMangaShelf } from '@/lib/db.client';
 import { MangaSearchItem, MangaShelfItem, MangaSource } from '@/lib/manga.types';
 
 import MangaCard from '@/components/MangaCard';
+
+const MANGA_SEARCH_STATE_KEY = 'manga_search_state';
 
 function MangaCardSkeleton({ withButton = false }: { withButton?: boolean }) {
   return (
@@ -24,6 +27,11 @@ function MangaCardSkeleton({ withButton = false }: { withButton?: boolean }) {
 }
 
 export default function MangaPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlQuery = searchParams.get('q')?.trim() || '';
+  const urlSourceId = searchParams.get('sourceId') || '';
+
   const [query, setQuery] = useState('');
   const [sources, setSources] = useState<MangaSource[]>([]);
   const [sourceId, setSourceId] = useState('');
@@ -31,6 +39,64 @@ export default function MangaPage() {
   const [shelf, setShelf] = useState<Record<string, MangaShelfItem>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+  const [lastSearchedQuery, setLastSearchedQuery] = useState('');
+  const [lastSearchedSourceId, setLastSearchedSourceId] = useState('');
+  const restoredRef = useRef(false);
+
+  const getCacheKey = useCallback((keyword: string, selectedSourceId: string) => {
+    return `manga_search_cache_${selectedSourceId || 'all'}_${keyword.trim()}`;
+  }, []);
+
+  const getCachedResults = useCallback(
+    (keyword: string, selectedSourceId: string) => {
+      if (typeof window === 'undefined' || !keyword.trim()) return null;
+      try {
+        const cached = sessionStorage.getItem(getCacheKey(keyword, selectedSourceId));
+        return cached ? (JSON.parse(cached) as MangaSearchItem[]) : null;
+      } catch {
+        return null;
+      }
+    },
+    [getCacheKey]
+  );
+
+  const setCachedResults = useCallback(
+    (keyword: string, selectedSourceId: string, nextResults: MangaSearchItem[]) => {
+      if (typeof window === 'undefined' || !keyword.trim()) return;
+      try {
+        sessionStorage.setItem(getCacheKey(keyword, selectedSourceId), JSON.stringify(nextResults));
+      } catch {
+        // ignore session cache failures
+      }
+    },
+    [getCacheKey]
+  );
+
+  const saveSearchState = useCallback((nextState: { query: string; sourceId: string; results: MangaSearchItem[] }) => {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem(MANGA_SEARCH_STATE_KEY, JSON.stringify(nextState));
+    } catch {
+      // ignore session cache failures
+    }
+  }, []);
+
+  const restoreSearchState = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const cached = sessionStorage.getItem(MANGA_SEARCH_STATE_KEY);
+      return cached
+        ? (JSON.parse(cached) as {
+            query: string;
+            sourceId: string;
+            results: MangaSearchItem[];
+          })
+        : null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     fetch('/api/manga/sources')
@@ -41,24 +107,96 @@ export default function MangaPage() {
     getAllMangaShelf().then(setShelf).catch(() => undefined);
   }, []);
 
+  const performSearch = useCallback(
+    async (keyword: string, selectedSourceId: string) => {
+      const trimmedQuery = keyword.trim();
+      if (!trimmedQuery) return;
+
+      setLoading(true);
+      setError('');
+      setHasSearched(true);
+      setLastSearchedQuery(trimmedQuery);
+      setLastSearchedSourceId(selectedSourceId);
+
+      const cached = getCachedResults(trimmedQuery, selectedSourceId);
+      if (cached) {
+        setResults(cached);
+        saveSearchState({ query: trimmedQuery, sourceId: selectedSourceId, results: cached });
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams({ q: trimmedQuery });
+        if (selectedSourceId) params.set('sourceId', selectedSourceId);
+        const res = await fetch(`/api/manga/search?${params.toString()}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '搜索失败');
+        const nextResults = data.results || [];
+        setResults(nextResults);
+        setCachedResults(trimmedQuery, selectedSourceId, nextResults);
+        saveSearchState({ query: trimmedQuery, sourceId: selectedSourceId, results: nextResults });
+      } catch (err) {
+        setError((err as Error).message);
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getCachedResults, saveSearchState, setCachedResults]
+  );
+
+  useEffect(() => {
+    if (!restoredRef.current) {
+      restoredRef.current = true;
+
+      if (!urlQuery) {
+        const cachedState = restoreSearchState();
+        if (cachedState?.query?.trim()) {
+          setQuery(cachedState.query);
+          setSourceId(cachedState.sourceId || '');
+          setResults(cachedState.results || []);
+          setHasSearched(true);
+          setLastSearchedQuery(cachedState.query);
+          setLastSearchedSourceId(cachedState.sourceId || '');
+        }
+        return;
+      }
+    }
+
+    setQuery(urlQuery);
+    setSourceId(urlSourceId);
+
+    if (!urlQuery) {
+      setResults([]);
+      setHasSearched(false);
+      setLastSearchedQuery('');
+      setLastSearchedSourceId('');
+      setError('');
+      return;
+    }
+
+    void performSearch(urlQuery, urlSourceId);
+  }, [performSearch, restoreSearchState, urlQuery, urlSourceId]);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
-    setLoading(true);
-    setError('');
-    try {
-      const params = new URLSearchParams({ q: query.trim() });
-      if (sourceId) params.set('sourceId', sourceId);
-      const res = await fetch(`/api/manga/search?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '搜索失败');
-      setResults(data.results || []);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    const params = new URLSearchParams({ q: trimmedQuery });
+    if (sourceId) params.set('sourceId', sourceId);
+    router.replace(`/manga?${params.toString()}`);
+    await performSearch(trimmedQuery, sourceId);
   };
+
+  const returnTo = useMemo(() => {
+    const params = new URLSearchParams();
+    if (lastSearchedQuery) params.set('q', lastSearchedQuery);
+    if (lastSearchedSourceId) params.set('sourceId', lastSearchedSourceId);
+    const queryString = params.toString();
+    return queryString ? `/manga?${queryString}` : '/manga';
+  }, [lastSearchedQuery, lastSearchedSourceId]);
 
   const toggleShelf = async (item: MangaSearchItem) => {
     const key = `${item.sourceId}+${item.id}`;
@@ -133,7 +271,7 @@ export default function MangaPage() {
           </div>
         ) : results.length === 0 ? (
           <div className='rounded-2xl bg-gray-50 p-10 text-center text-sm text-gray-500 dark:bg-gray-900/50'>
-            请输入关键词开始搜索漫画
+            {hasSearched ? '没有找到相关漫画' : '请输入关键词开始搜索漫画'}
           </div>
         ) : (
           <div className='grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6'>
@@ -143,7 +281,7 @@ export default function MangaPage() {
                 <div key={key} className='space-y-2'>
                   <MangaCard
                     item={item}
-                    href={`/manga/detail?mangaId=${item.id}&sourceId=${item.sourceId}&title=${encodeURIComponent(item.title)}&cover=${encodeURIComponent(item.cover)}&sourceName=${encodeURIComponent(item.sourceName)}&description=${encodeURIComponent(item.description || '')}&author=${encodeURIComponent(item.author || '')}&status=${encodeURIComponent(item.status || '')}`}
+                    href={`/manga/detail?mangaId=${item.id}&sourceId=${item.sourceId}&title=${encodeURIComponent(item.title)}&cover=${encodeURIComponent(item.cover)}&sourceName=${encodeURIComponent(item.sourceName)}&description=${encodeURIComponent(item.description || '')}&author=${encodeURIComponent(item.author || '')}&status=${encodeURIComponent(item.status || '')}&returnTo=${encodeURIComponent(returnTo)}`}
                     subtitle={item.author || item.status || item.description}
                   />
                   <button
