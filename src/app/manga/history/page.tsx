@@ -3,10 +3,10 @@
 import { History } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { getAllMangaReadRecords } from '@/lib/db.client';
-import { MangaReadRecord } from '@/lib/manga.types';
+import { deleteMangaReadRecord, deleteMangaShelf, getAllMangaReadRecords, getAllMangaShelf, saveMangaShelf, subscribeToDataUpdates } from '@/lib/db.client';
+import { MangaReadRecord, MangaShelfItem } from '@/lib/manga.types';
 
-import MangaCard from '@/components/MangaCard';
+import MangaHistoryCard from '@/components/manga/MangaHistoryCard';
 
 function MangaHistorySkeleton() {
   return (
@@ -27,18 +27,68 @@ function MangaHistorySkeleton() {
 export default function MangaHistoryPage() {
   const [history, setHistory] = useState<Record<string, MangaReadRecord>>({});
   const [loading, setLoading] = useState(true);
+  const [shelf, setShelf] = useState<Record<string, MangaShelfItem>>({});
 
   useEffect(() => {
-    getAllMangaReadRecords()
-      .then(setHistory)
+    Promise.all([getAllMangaReadRecords(), getAllMangaShelf()])
+      .then(([historyData, shelfData]) => {
+        setHistory(historyData);
+        setShelf(shelfData);
+      })
       .catch(() => undefined)
       .finally(() => setLoading(false));
+
+    const unsubscribeHistory = subscribeToDataUpdates<Record<string, MangaReadRecord>>('mangaHistoryUpdated', setHistory);
+    const unsubscribeShelf = subscribeToDataUpdates<Record<string, MangaShelfItem>>('mangaShelfUpdated', setShelf);
+
+    return () => {
+      unsubscribeHistory();
+      unsubscribeShelf();
+    };
   }, []);
 
   const historyList = useMemo(
     () => Object.entries(history).sort(([, a], [, b]) => b.saveTime - a.saveTime),
     [history]
   );
+
+
+  const toggleShelf = async (item: MangaReadRecord) => {
+    const key = `${item.sourceId}+${item.mangaId}`;
+    if (shelf[key]) {
+      await deleteMangaShelf(item.sourceId, item.mangaId);
+      setShelf((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+
+    const shelfItem: MangaShelfItem = {
+      title: item.title,
+      cover: item.cover,
+      sourceId: item.sourceId,
+      sourceName: item.sourceName,
+      mangaId: item.mangaId,
+      saveTime: Date.now(),
+      lastChapterId: item.chapterId,
+      lastChapterName: item.chapterName,
+    };
+
+    await saveMangaShelf(item.sourceId, item.mangaId, shelfItem);
+    setShelf((prev) => ({ ...prev, [key]: shelfItem }));
+  };
+
+  const deleteHistory = async (item: MangaReadRecord) => {
+    const key = `${item.sourceId}+${item.mangaId}`;
+    await deleteMangaReadRecord(item.sourceId, item.mangaId);
+    setHistory((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   return (
     <section className='mx-auto max-w-6xl'>
@@ -54,11 +104,12 @@ export default function MangaHistoryPage() {
       ) : (
         <div className='grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6'>
           {historyList.map(([key, item]) => (
-            <MangaCard
+            <MangaHistoryCard
               key={key}
               item={item}
-              href={`/manga/read?mangaId=${item.mangaId}&sourceId=${item.sourceId}&chapterId=${item.chapterId}&title=${encodeURIComponent(item.title)}&cover=${encodeURIComponent(item.cover)}&sourceName=${encodeURIComponent(item.sourceName)}&chapterName=${encodeURIComponent(item.chapterName)}`}
-              subtitle={`${item.chapterName} · 第 ${item.pageIndex + 1}/${item.pageCount} 页`}
+              inShelf={!!shelf[`${item.sourceId}+${item.mangaId}`]}
+              onToggleShelf={toggleShelf}
+              onDelete={deleteHistory}
             />
           ))}
         </div>
